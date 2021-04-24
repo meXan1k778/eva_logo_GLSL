@@ -1,105 +1,169 @@
 import './style.css'
 import * as THREE from 'three'
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import * as dat from 'dat.gui'
 
-// Debug
-const gui = new dat.GUI()
+// Three JS
 
-// Canvas
-const canvas = document.querySelector('canvas.webgl')
+window.addEventListener('load', init, false);
 
-// Scene
-const scene = new THREE.Scene()
-
-// Objects
-const geometry = new THREE.TorusGeometry( .7, .2, 16, 100 );
-
-// Materials
-
-const material = new THREE.MeshBasicMaterial()
-material.color = new THREE.Color(0xff0000)
-
-// Mesh
-const sphere = new THREE.Mesh(geometry,material)
-scene.add(sphere)
-
-// Lights
-
-const pointLight = new THREE.PointLight(0xffffff, 0.1)
-pointLight.position.x = 2
-pointLight.position.y = 3
-pointLight.position.z = 4
-scene.add(pointLight)
-
-/**
- * Sizes
- */
-const sizes = {
-    width: window.innerWidth,
-    height: window.innerHeight
+function init() {
+  createWorld();
+  createPrimitive();
+  createGUI();
+  //---
+  animation();
 }
 
-window.addEventListener('resize', () =>
-{
-    // Update sizes
-    sizes.width = window.innerWidth
-    sizes.height = window.innerHeight
+var Theme = {_darkred: 0xffffff}
 
-    // Update camera
-    camera.aspect = sizes.width / sizes.height
-    camera.updateProjectionMatrix()
+//--------------------------------------------------------------------
 
-    // Update renderer
-    renderer.setSize(sizes.width, sizes.height)
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-})
-
-/**
- * Camera
- */
-// Base camera
-const camera = new THREE.PerspectiveCamera(75, sizes.width / sizes.height, 0.1, 100)
-camera.position.x = 0
-camera.position.y = 0
-camera.position.z = 2
-scene.add(camera)
-
-// Controls
-// const controls = new OrbitControls(camera, canvas)
-// controls.enableDamping = true
-
-/**
- * Renderer
- */
-const renderer = new THREE.WebGLRenderer({
-    canvas: canvas
-})
-renderer.setSize(sizes.width, sizes.height)
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-
-/**
- * Animate
- */
-
-const clock = new THREE.Clock()
-
-const tick = () =>
-{
-
-    const elapsedTime = clock.getElapsedTime()
-
-    // Update objects
-    sphere.rotation.y = .5 * elapsedTime
-
-    // Update Orbital Controls
-    // controls.update()
-
-    // Render
-    renderer.render(scene, camera)
-
-    // Call tick again on the next frame
-    window.requestAnimationFrame(tick)
+var scene, camera, renderer, container;
+var start = Date.now();
+var _width, _height;
+function createWorld() {
+  _width = window.innerWidth;
+  _height= window.innerHeight;
+  //---
+  scene = new THREE.Scene();
+  //scene.fog = new THREE.Fog(Theme._darkred, 8, 20);
+  scene.background = new THREE.Color(Theme._darkred);
+  //---
+  camera = new THREE.PerspectiveCamera(55, _width/_height, 1, 1000);
+  camera.position.z = 12;
+  //---
+  renderer = new THREE.WebGLRenderer({antialias:true, alpha:false});
+  renderer.setSize(_width, _height);
+  //---
+  container = document.getElementById("container");
+  container.appendChild(renderer.domElement);
+  //---
+  window.addEventListener('resize', onWindowResize, false);
 }
 
-tick()
+function onWindowResize() {
+  _width = window.innerWidth;
+  _height = window.innerHeight;
+  renderer.setSize(_width, _height);
+  camera.aspect = _width / _height;
+  camera.updateProjectionMatrix();
+  console.log('- resize -');
+}
+
+//--------------------------------------------------------------------
+
+var mat;
+var primitiveElement = function() {
+  this.mesh = new THREE.Object3D();
+  mat = new THREE.ShaderMaterial( {
+    wireframe: false,
+    //fog: true,
+    uniforms: {
+      time: {
+        type: "f",
+        value: 0.0
+      },
+      pointscale: {
+        type: "f",
+        value: 0.0
+      },
+      decay: {
+        type: "f",
+        value: 0.0
+      },
+      complex: {
+        type: "f",
+        value: 0.0
+      },
+      waves: {
+        type: "f",
+        value: 0.0
+      },
+      eqcolor: {
+        type: "f",
+        value: 0.0
+      },
+      fragment: {
+        type: "i",
+        value: true
+      },
+    },
+    vertexShader: document.getElementById( 'vertexShader' ).textContent,
+    fragmentShader: document.getElementById( 'fragmentShader' ).textContent
+  });
+  var geo = new THREE.IcosahedronBufferGeometry(3, 7);
+  var mesh = new THREE.Points(geo, mat);
+  
+  //---
+  this.mesh.add(mesh);
+}
+
+var _primitive;
+function createPrimitive() {
+  _primitive = new primitiveElement();
+  scene.add(_primitive.mesh);
+}
+
+//--------------------------------------------------------------------
+
+var options = {
+  perlin: {
+    vel: 0.02,
+    speed: 0.0002,
+    perlins: 5.0,
+    decay: 0.12,
+    complex: 0.47,
+    waves: 0,
+    eqcolor: 2.8,
+    fragment: true,
+  },
+  spin: {
+    sinVel: 0.2,
+    ampVel: 17.0,
+  }
+}
+
+function createGUI() {
+  var gui = new dat.GUI();
+  var camGUI = gui.addFolder('Camera');
+  //cam.add(, 'speed', 0.0, 30.00).listen();
+  camGUI.add(camera.position, 'z', 3, 20).name('Zoom').listen();
+  camGUI.add(options.perlin, 'vel', 0.000, 0.02).name('Velocity').listen();
+  //camGUI.open();
+  
+  var mathGUI = gui.addFolder('Math Options');
+  mathGUI.add(options.spin, 'sinVel', 0.0, 0.50).name('Sine').listen();
+  mathGUI.add(options.spin, 'ampVel', 0.0, 90.00).name('Amplitude').listen();
+  //mathGUI.open();
+  
+  var perlinGUI = gui.addFolder('Setup Perlin Noise');
+  perlinGUI.add(options.perlin, 'perlins', 1.0, 5.0).name('Size').step(1);
+  perlinGUI.add(options.perlin, 'speed', 0.00000, 0.00050).name('Speed').listen();
+  perlinGUI.add(options.perlin, 'decay', 0.0, 1.00).name('Decay').listen();
+  perlinGUI.add(options.perlin, 'waves', 0.0, 20.00).name('Waves').listen();
+  perlinGUI.add(options.perlin, 'fragment', true).name('Fragment');
+  perlinGUI.add(options.perlin, 'complex', 0.1, 1.00).name('Complex').listen();
+  perlinGUI.add(options.perlin, 'eqcolor', 0.0, 15.0).name('Hue').listen();
+  perlinGUI.open();
+}
+
+//--------------------------------------------------------------------
+
+function animation() {
+  requestAnimationFrame(animation);
+  var performance = Date.now() * 0.003;
+  
+  _primitive.mesh.rotation.y += options.perlin.vel;
+  _primitive.mesh.rotation.x = (Math.sin(performance * options.spin.sinVel) * options.spin.ampVel )* Math.PI / 180;
+  //---
+  mat.uniforms['time'].value = options.perlin.speed * (Date.now() - start);
+  mat.uniforms['pointscale'].value = options.perlin.perlins;
+  mat.uniforms['decay'].value = options.perlin.decay;
+  mat.uniforms['complex'].value = options.perlin.complex;
+  mat.uniforms['waves'].value = options.perlin.waves;
+  mat.uniforms['eqcolor'].value = options.perlin.eqcolor;
+  mat.uniforms['fragment'].value = options.perlin.fragment;
+  //---
+  camera.lookAt(scene.position);
+  renderer.render(scene, camera);
+}
